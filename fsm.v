@@ -1,5 +1,3 @@
-`timescale 1ns / 1ps
-
 module packetizer_fsm #(
     parameter BAUD_RATE = 115200,
     parameter CLK_FREQ = 50000000,
@@ -18,7 +16,7 @@ module packetizer_fsm #(
     output reg [2:0] debug_state  
 );
 
-    // States - using parameters instead of typedef enum
+    // States
     parameter IDLE         = 3'd0;
     parameter WAIT_TX_READY = 3'd1;
     parameter READ_FIFO    = 3'd2;
@@ -42,54 +40,58 @@ module packetizer_fsm #(
         end
     end
     
-    // Baud rate generator
+    // Baud rate generator - always running
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             baud_counter <= 0;
             baud_tick <= 0;
         end else begin
-            if (state != IDLE && state != WAIT_TX_READY && state != READ_FIFO) begin
-                if (baud_counter == BAUD_COUNT - 1) begin
-                    baud_counter <= 0;
-                    baud_tick <= 1;
-                end else begin
-                    baud_counter <= baud_counter + 1;
-                    baud_tick <= 0;
-                end
-            end else begin
+            if (baud_counter == BAUD_COUNT - 1) begin
                 baud_counter <= 0;
+                baud_tick <= 1;
+            end else begin
+                baud_counter <= baud_counter + 1;
                 baud_tick <= 0;
             end
         end
     end
     
-    // Next state logic
+    // Next state logic - FIXED VERSION
     always @(*) begin
         next_state = state;
         fifo_read_en = 0;
-        tx_busy = 1;
+        tx_busy = (state != IDLE);
         
         case (state)
             IDLE: begin
-                tx_busy = 0;
                 if (!fifo_empty) begin
                     next_state = WAIT_TX_READY;
                 end
             end
             
             WAIT_TX_READY: begin
-                if (tx_ready) begin
+                if (fifo_empty) begin
+                    next_state = IDLE;
+                end
+                else if (tx_ready) begin
                     next_state = READ_FIFO;
                 end
             end
             
             READ_FIFO: begin
-                fifo_read_en = 1;
-                next_state = SEND_START;
+                if (fifo_empty) begin
+                    next_state = IDLE;
+                end else begin
+                    fifo_read_en = 1;
+                    next_state = SEND_START;
+                end
             end
             
             SEND_START: begin
-                if (baud_tick) begin
+                if (fifo_empty) begin
+                    next_state = IDLE;
+                end
+                else if (baud_tick) begin
                     next_state = SEND_DATA;
                 end
             end
@@ -107,7 +109,11 @@ module packetizer_fsm #(
             end
             
             DONE: begin
-                next_state = IDLE;
+                if (fifo_empty) begin
+                    next_state = IDLE;
+                end else begin
+                    next_state = WAIT_TX_READY;
+                end
             end
             
             default: begin
@@ -116,8 +122,8 @@ module packetizer_fsm #(
         endcase
     end
     
-    // Data path
-    always @(posedge clk or posedge rst) begin
+    // Data path 
+    always @(posedge clk) begin
         if (rst) begin
             shift_reg <= 0;
             bit_count <= 0;
@@ -126,17 +132,20 @@ module packetizer_fsm #(
             case (state)
                 IDLE: begin
                     serial_out <= 1;
+                    bit_count <= 0;
                 end
                 
                 READ_FIFO: begin
-                    if (fifo_data_valid) begin
+                    if (fifo_read_en && fifo_data_valid) begin
                         shift_reg <= fifo_data;
                     end
+                    serial_out <= 1;
                 end
                 
                 SEND_START: begin
-                    serial_out <= 0;
-                    bit_count <= 0;
+                    if (baud_tick) begin
+                        serial_out <= 0;
+                    end
                 end
                 
                 SEND_DATA: begin
@@ -147,7 +156,9 @@ module packetizer_fsm #(
                 end
                 
                 SEND_STOP: begin
-                    serial_out <= 1;
+                    if (baud_tick) begin
+                        serial_out <= 1;
+                    end
                 end
                 
                 default: begin
@@ -155,7 +166,7 @@ module packetizer_fsm #(
                 end
             endcase
         end
-         debug_state <= state;
+        debug_state <= state;
     end
 
 endmodule
