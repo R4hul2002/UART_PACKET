@@ -14,7 +14,8 @@ module packetizer_fsm #(
     output reg fifo_read_en,
     input wire tx_ready,
     output reg serial_out,
-    output reg tx_busy
+    output reg tx_busy,
+    output reg [2:0] debug_state  
 );
 
     // States - using parameters instead of typedef enum
@@ -154,6 +155,7 @@ module packetizer_fsm #(
                 end
             endcase
         end
+         debug_state <= state;
     end
 
 endmodule
