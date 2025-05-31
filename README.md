@@ -43,4 +43,4 @@ make sim
 
 
 
-### NOTE : If the build script fails to open please do it manully. Else connect with me Wil guide you with the issue. The issue raise due to several factor mis match in the OS release to cause trouble 
+### NOTE : If the build script fails to open please do it manully. Else connect with me will guide you with the issue. The issue raise due to several factor mis match in the OS release to cause trouble 
