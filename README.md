@@ -30,7 +30,7 @@
 ## 🧪 Running the Files
 
 
-### make synthesis 
+### synthesis 
 ```bash
 make clean    # Clean previous builds
 make          # Run full implementation
